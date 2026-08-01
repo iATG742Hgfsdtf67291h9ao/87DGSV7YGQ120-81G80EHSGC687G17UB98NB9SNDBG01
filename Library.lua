@@ -668,13 +668,13 @@ Library.DragWithGhost = LPH_NO_VIRTUALIZE(function(_Library, Frame)
         return
     end
 
-    Ghost.Visible = false
-    Frame.Visible = true
-
     Frame.Position = UDim2.new(
         StartPosition.X.Scale, StartPosition.X.Offset + Delta.X,
         StartPosition.Y.Scale, StartPosition.Y.Offset + Delta.Y
     )
+
+    Frame.Visible = true
+    Ghost.Visible = false
 end)
 
 function Library:MakeDraggable(Instance, Cutoff, IsMainWindow)
