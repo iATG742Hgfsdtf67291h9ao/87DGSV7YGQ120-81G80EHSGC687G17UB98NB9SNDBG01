@@ -673,6 +673,8 @@ Library.DragWithGhost = LPH_NO_VIRTUALIZE(function(_Library, Frame)
         StartPosition.Y.Scale, StartPosition.Y.Offset + Delta.Y
     )
 
+    local _ = Frame.AbsolutePosition
+
     Frame.Visible = true
     Ghost.Visible = false
 end)
