@@ -69,7 +69,7 @@ local SaveManager = {} do
             end,
             Load = function(idx, data)
                 local object = SaveManager.Library.Options[idx]
-                if object and object.Value ~= data.value then
+                if object and tostring(object.Value) ~= tostring(data.value) then
                     object:SetValue(data.value)
                 end
             end,
@@ -188,10 +188,13 @@ local SaveManager = {} do
     end
 
     function SaveManager:CheckFolderTree()
-        if isfolder(self.Folder) then return end
+        local RootExisted = isfolder(self.Folder)
+
         SaveManager:BuildFolderTree()
 
-        task.wait(0.1)
+        if not RootExisted then
+            task.wait(0.1)
+        end
     end
 
     function SaveManager:SetIgnoreIndexes(list)
@@ -349,19 +352,10 @@ local SaveManager = {} do
             for i = 1, #list do
                 local file = list[i]
                 if file:sub(-5) == '.json' then
-                    -- i hate this but it has to be done ...
+                    local name = file:match("[^/\\]+%.json$")
 
-                    local pos = file:find('.json', 1, true)
-                    local start = pos
-
-                    local char = file:sub(pos, pos)
-                    while char ~= '/' and char ~= '\\' and char ~= '' do
-                        pos = pos - 1
-                        char = file:sub(pos, pos)
-                    end
-
-                    if char == '/' or char == '\\' then
-                        table.insert(out, file:sub(pos + 1, start - 1))
+                    if name then
+                        table.insert(out, name:sub(1, -6))
                     end
                 end
             end
@@ -382,14 +376,18 @@ local SaveManager = {} do
         return data
     end
 
-    --// Auto Load \\--
+    function SaveManager:GetAutoloadPath()
+        if self:CheckSubFolder(true) then
+            return self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
+        end
+
+        return self.Folder .. "/settings/autoload.txt"
+    end
+
     function SaveManager:GetAutoloadConfig()
         SaveManager:CheckFolderTree()
 
-        local autoLoadPath = self.Folder .. "/settings/autoload.txt"
-        if SaveManager:CheckSubFolder(true) then
-            autoLoadPath = self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
-        end
+        local autoLoadPath = self:GetAutoloadPath()
 
         if isfile(autoLoadPath) then
             local successRead, name = pcall(readfile, autoLoadPath)
@@ -397,7 +395,7 @@ local SaveManager = {} do
                 return "none"
             end
 
-            name = tostring(name)
+            name = tostring(name):match("^%s*(.-)%s*$")
             return if name == "" then "none" else name
         end
 
@@ -407,10 +405,7 @@ local SaveManager = {} do
     function SaveManager:LoadAutoloadConfig()
         SaveManager:CheckFolderTree()
 
-        local autoLoadPath = self.Folder .. "/settings/autoload.txt"
-        if SaveManager:CheckSubFolder(true) then
-            autoLoadPath = self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
-        end
+        local autoLoadPath = self:GetAutoloadPath()
 
         if isfile(autoLoadPath) then
             local successRead, name = pcall(readfile, autoLoadPath)
@@ -418,6 +413,8 @@ local SaveManager = {} do
                 self.Library:Notify('Failed to load autoload config: write file error')
                 return
             end
+
+            name = tostring(name):match("^%s*(.-)%s*$")
 
             local success, err = self:Load(name)
             if not success then
@@ -432,10 +429,7 @@ local SaveManager = {} do
     function SaveManager:SaveAutoloadConfig(name)
         SaveManager:CheckFolderTree()
 
-        local autoLoadPath = self.Folder .. "/settings/autoload.txt"
-        if SaveManager:CheckSubFolder(true) then
-            autoLoadPath = self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
-        end
+        local autoLoadPath = self:GetAutoloadPath()
 
         local success = pcall(writefile, autoLoadPath, name)
         if not success then return false, 'write file error' end
@@ -446,10 +440,7 @@ local SaveManager = {} do
     function SaveManager:DeleteAutoLoadConfig()
         SaveManager:CheckFolderTree()
 
-        local autoLoadPath = self.Folder .. "/settings/autoload.txt"
-        if SaveManager:CheckSubFolder(true) then
-            autoLoadPath = self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
-        end
+        local autoLoadPath = self:GetAutoloadPath()
 
         local success = pcall(delfile, autoLoadPath)
         if not success then return false, 'delete file error' end

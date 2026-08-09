@@ -65,12 +65,16 @@ local ThemeManager = {} do
 		['Quartz']        = { 8, { FontColor = "ffffff", MainColor = "232330", AccentColor = "426e87", BackgroundColor = "1d1b26", OutlineColor = "27232f", RiskColor = "e05561" } },
 	}
 
+	local AppliedVideoLink = nil
+
 	function ApplyBackgroundVideo(videoLink)
 		if
 			typeof(videoLink) ~= "string" or
 			not (getassetfunc and writefile and readfile and isfile) or
 			not (ThemeManager.Library and ThemeManager.Library.InnerVideoBackground)
 		then return; end;
+
+		if videoLink == AppliedVideoLink then return; end;
 
 		--// Variables \\--
 		local videoInstance = ThemeManager.Library.InnerVideoBackground;
@@ -83,12 +87,12 @@ local ThemeManager = {} do
 			videoInstance:Pause();
 			videoInstance.Video = "";
 			videoInstance.Visible = false;
+			AppliedVideoLink = videoLink;
 			return
 		end
 		if #extension > 5 and string.sub(extension, -5) ~= ".webm" then return; end;
 
-		--// Fetch Video Data \\--
-		local videoFile = ThemeManager.Folder .. "/themes/" .. string.gsub(domain .. filename, 0, 249) .. ".webm";
+		local videoFile = ThemeManager.Folder .. "/themes/" .. string.sub(domain .. filename, 0, 249) .. ".webm";
 		if not isfile(videoFile) then
 			local success, requestRes = pcall(httprequest, { Url = videoLink, Method = 'GET' })
 			if not (success and typeof(requestRes) == "table" and typeof(requestRes.Body) == "string") then return; end;
@@ -100,6 +104,8 @@ local ThemeManager = {} do
 		videoInstance.Video = getassetfunc(videoFile);
 		videoInstance.Visible = true;
 		videoInstance:Play();
+
+		AppliedVideoLink = videoLink;
 	end
 
 	function ThemeManager:SetLibrary(library)
@@ -131,10 +137,13 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:CheckFolderTree()
-		if isfolder(self.Folder) then return end
+		local RootExisted = isfolder(self.Folder)
+
 		self:BuildFolderTree()
 
-		task.wait(0.1)
+		if not RootExisted then
+			task.wait(0.1)
+		end
 	end
 
 	function ThemeManager:SetFolder(folder)
@@ -149,8 +158,8 @@ local ThemeManager = {} do
 
 		if not data then return end
 
-		-- custom themes are just regular dictionaries instead of an array with { index, dictionary }
-		if self.Library.InnerVideoBackground ~= nil then
+		if self.Library.InnerVideoBackground ~= nil
+			and not (self.Library.Options and self.Library.Options.VideoLink) then
 			self.Library.InnerVideoBackground.Visible = false
 		end
 		
@@ -177,8 +186,8 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:ThemeUpdate()
-		-- This allows us to force apply themes without loading the themes tab :)
-		if self.Library.InnerVideoBackground ~= nil then
+		if self.Library.InnerVideoBackground ~= nil
+			and not (self.Library.Options and self.Library.Options.VideoLink) then
 			self.Library.InnerVideoBackground.Visible = false
 		end
 
@@ -217,6 +226,11 @@ local ThemeManager = {} do
 		local theme = 'Default'
 		local content = isfile(self.Folder .. '/themes/default.txt') and readfile(self.Folder .. '/themes/default.txt')
 
+		if typeof(content) == "string" then
+			content = content:match("^%s*(.-)%s*$")
+			if content == "" then content = nil end
+		end
+
 		local isDefault = true
 		if content then
 			if self.BuiltInThemes[content] then
@@ -237,6 +251,8 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:SaveDefault(theme)
+		self:CheckFolderTree()
+
 		writefile(self.Folder .. '/themes/default.txt', theme)
 	end
 
@@ -246,12 +262,17 @@ local ThemeManager = {} do
 			return
 		end
 
+		self:CheckFolderTree()
+
 		local theme = {}
 		for _, field in next, ThemeFields do
-			if field == "VideoLink" then
-				theme[field] = self.Library.Options[field].Value
-			else
-				theme[field] = self.Library.Options[field].Value:ToHex()
+			local option = self.Library.Options[field]
+			if option ~= nil then
+				if field == "VideoLink" then
+					theme[field] = option.Value
+				else
+					theme[field] = option.Value:ToHex()
+				end
 			end
 		end
 
@@ -273,25 +294,19 @@ local ThemeManager = {} do
 	end
 	
 	function ThemeManager:ReloadCustomThemes()
+		self:CheckFolderTree()
+
 		local list = listfiles(self.Folder .. '/themes')
+		if typeof(list) ~= "table" then list = {} end
 
 		local out = {}
 		for i = 1, #list do
 			local file = list[i]
 			if file:sub(-5) == '.json' then
-				-- i hate this but it has to be done ...
+				local name = file:match("[^/\\]+%.json$")
 
-				local pos = file:find('.json', 1, true)
-				local start = pos
-
-				local char = file:sub(pos, pos)
-				while char ~= '/' and char ~= '\\' and char ~= '' do
-					pos = pos - 1
-					char = file:sub(pos, pos)
-				end
-
-				if char == '/' or char == '\\' then
-					table.insert(out, file:sub(pos + 1, start - 1))
+				if name then
+					table.insert(out, name:sub(1, -6))
 				end
 			end
 		end
