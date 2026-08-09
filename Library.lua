@@ -9367,7 +9367,10 @@ end
                     Option:SetModePickerVisibility(false)
 
                 elseif Option.Type == "ColorPicker" then
-                    Option.ContextMenu:Hide()
+                    if Option.ContextMenu then
+                        Option.ContextMenu:Hide()
+                    end
+
                     Option:Hide()
                 end
             end)
