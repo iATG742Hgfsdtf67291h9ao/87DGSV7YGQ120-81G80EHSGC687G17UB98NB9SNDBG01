@@ -431,7 +431,7 @@ local FetchIcons, Icons = pcall(function()
     local Chunk = loadstring(
         game:HttpGet("https://raw.githubusercontent.com/deividcomsono/lucide-roblox-direct/refs/heads/main/source.lua")
     )
-    local Module = if Chunk then (Chunk :: () -> IconModule)() else nil
+    local Module = (Chunk :: () -> IconModule)()
 
     if typeof(Module) == "table" then
         Env.MourneLucideIcons = Module
@@ -439,6 +439,10 @@ local FetchIcons, Icons = pcall(function()
 
     return Module
 end)
+
+if typeof(Icons) ~= "table" then
+    FetchIcons = false
+end
 
 local function IsValidCustomIcon(Icon: string)
     return typeof(Icon) == "string"
@@ -906,9 +910,6 @@ function Library:MakeResizable(Instance, MinSize)
         end
     end))
 
-    -- Enter/Leave only drive the hover highlight. They must not run while a resize is in
-    -- progress: the image is reparented fullscreen on mouse-down, so the events fire again
-    -- immediately and FinishResize would clear OffsetPos and cancel the drag.
     ResizerImage.MouseEnter:Connect(function()
         if OffsetPos then
             return
@@ -929,9 +930,6 @@ function Library:MakeResizable(Instance, MinSize)
         FinishResize(ResizerImage_HoverTransparency)
     end)
 
-    -- Releasing outside the image never fires MouseButton1Up, which would otherwise leave
-    -- the resize stuck on. OffsetPos is already nil when the button-up path ran, so this
-    -- only fires for releases the image itself did not see.
     Library:GiveSignal(InputService.InputEnded:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 and OffsetPos then
             FinishResize(1)
@@ -951,9 +949,6 @@ function Library:AddToolTip(InfoStr, DisabledInfoStr, HoverInstance)
     }
     local IsHovering = false
 
-    -- Built on first hover. A tooltip is invisible until the cursor reaches its control, so
-    -- creating a frame, a label and two registry entries per tooltipped control up front
-    -- spent instances and registry size on UI that is mostly never shown.
     local Tooltip, Label
 
     local function UpdateText(Text)
@@ -1002,8 +997,6 @@ function Library:AddToolTip(InfoStr, DisabledInfoStr, HoverInstance)
 
         TooltipTable.Tooltip = Tooltip
 
-        -- Sizes the frame to the text the label was created with; without this the first
-        -- hover would show a zero-sized tooltip.
         UpdateText(InfoStr)
     end
 
@@ -1286,10 +1279,6 @@ function Library:AddToRegistry(Instance, Properties, IsHud)
     end
 end
 
--- Swap-removes instead of scanning. ScreenGui.DescendantRemoving calls this once per
--- destroyed instance, and a dropdown rebuild destroys every option at once, so a linear
--- scan of both registries per removal made teardown quadratic. Registry order is never
--- meaningful -- it is only walked to reapply colors.
 local function RegistrySwapRemove(List, Data, IdxKey)
     local Idx = Data[IdxKey]
     if not Idx or List[Idx] ~= Data then
@@ -1339,10 +1328,6 @@ function Library:UpdateColorsUsingRegistry()
 
     -- The above would be especially efficient for a rainbow menu color or live color-changing.
 
-    -- Colorpicker OnChanged fires continuously while a swatch is dragged, and ThemeManager
-    -- binds every theme color to this, so it runs per drag-frame across the whole registry.
-    -- Only writing when the value actually differs keeps the redundant property writes --
-    -- and the re-renders they trigger -- off that path.
     for _, Object in next, Library.Registry do
         local Instance = Object.Instance
 
@@ -1373,11 +1358,6 @@ function Library:GiveSignal(Connection: RBXScriptConnection | RBXScriptSignal) -
     return Connection
 end
 
--- Drag loops poll InputService:IsMouseButtonPressed, which never reports touch input, and
--- there is no API to poll touches directly. The loops previously wrote
--- `IsMouseButtonPressed(MouseButton1 or Touch)` -- `A or B` on two truthy enums is just
--- MouseButton1, so the touch half was dead and drags did not hold on mobile. Counted rather
--- than a plain flag so lifting one finger of a multi-touch does not cancel the drag.
 do
     local ActiveTouches = 0
 
@@ -1930,11 +1910,6 @@ do
         function KeyPicker:Display(Text)
             DisplayLabel.Text = Text or KeyPicker.DisplayValue
 
-            -- Measured rather than read back from TextBounds: reading TextBounds needs a
-            -- layout pass, which meant yielding a frame here. Display runs during keypicker
-            -- construction and on every SetValue, so that stalled window build and config
-            -- loads by a frame per keybind. 15 keeps the picker clear of the row above it
-            -- when it sits beside a slider.
             local Width = Library:GetTextBounds(DisplayLabel.Text, DisplayLabel.Font, DisplayLabel.TextSize)
             PickOuter.Size = UDim2.new(0, math.max(28, Width + 8), 0, 15)
         end
@@ -2355,10 +2330,6 @@ do
         -- There was some issue which caused RelativeOffset to be way off
         -- Thus the color picker would never show
 
-        -- The picker panel is built on first open. Every colorpicker owns a full panel
-        -- (~28 instances and 9 registry entries), only one can be open at a time, and most
-        -- are never opened at all, so building them up front dominated window construction.
-        -- Only DisplayFrame (the swatch) and the ColorPicker table stay eager.
         local PickerFrameOuter, SatVibMap, CursorOuter, HueSelectorInner, HueCursor
         local HueBox, RgbBox, ContextMenu, UpdatePickerPosition
         local TransparencyBoxOuter, TransparencyBoxInner, TransparencyCursor
@@ -2384,9 +2355,6 @@ do
                 PickerFrameOuter.Position = UDim2.fromOffset(DisplayFrame.AbsolutePosition.X, DisplayFrame.AbsolutePosition.Y + 18)
             end
 
-            -- Only tracked while open. Every colorpicker owns one of these, and AbsolutePosition
-            -- churns on any layout pass, so repositioning a hidden panel was N writes per pass
-            -- for no visible effect. Show() re-syncs before it becomes visible.
             DisplayFrame:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
                 if not PickerFrameOuter.Visible then
                     return
@@ -2748,8 +2716,6 @@ do
                 Parent = HueSelectorInner;
             })
 
-            -- Handlers live below the public methods so they can call them; assigned to the
-            -- forward-declared local and invoked here, once the instances exist.
             AttachPickerHandlers()
             ColorPicker:Display()
         end
@@ -2757,15 +2723,10 @@ do
         function ColorPicker:Display()
             ColorPicker.Value = Color3.fromHSV(ColorPicker.Hue, ColorPicker.Sat, ColorPicker.Vib)
 
-            -- Display runs every frame while a swatch is dragged. Library:Create would walk a
-            -- table and pcall each assignment for three known-good property writes.
             DisplayFrame.BackgroundColor3 = ColorPicker.Value
             DisplayFrame.BackgroundTransparency = ColorPicker.Transparency
             DisplayFrame.BorderColor3 = Library:GetDarkerColor(ColorPicker.Value)
 
-            -- The swatch above is always present; everything below belongs to the panel,
-            -- which does not exist until the picker is first opened. SetValue and config
-            -- loads both call Display long before that.
             if not PickerFrameOuter then
                 return
             end
@@ -2844,8 +2805,6 @@ do
             RunCallback()
         end
 
-        -- Attached by BuildPicker once the panel instances exist. Defined here, below the
-        -- public methods, because these handlers call them.
         AttachPickerHandlers = function()
 
         HueBox.FocusLost:Connect(function(enter)
@@ -2936,14 +2895,11 @@ do
 
         end
 
-        -- Stays eager: this is the swatch itself, and clicking it is what builds the panel.
         DisplayFrame.InputBegan:Connect(function(Input)
             if Library:MouseIsOverOpenedFrame(Input) then
                 return
             end
 
-            -- Both branches below touch the panel (left-click opens it, right-click opens
-            -- the context menu), so it has to exist by this point.
             BuildPicker()
 
             if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
@@ -2964,8 +2920,6 @@ do
                 return
             end
 
-            -- Global handler: fires for every click anywhere, including for colorpickers
-            -- whose panel has never been opened and therefore does not exist.
             if not PickerFrameOuter then
                 return
             end
@@ -3289,9 +3243,6 @@ do
             end
         end
 
-        -- Plain-text, not a Lua pattern: the old :match() call treated the query as a
-        -- pattern, so a stray "%" was a malformed-pattern error and "-" quietly matched
-        -- nothing useful.
         local function MatchesSearch(StringValue)
             if not Info.Searchable or not DropdownInnerSearch then
                 return true
@@ -3342,7 +3293,6 @@ do
                     Parent = Scrolling;
                 })
 
-                -- Lets ApplyFilter re-test a row without rebuilding it.
                 Button:SetAttribute("MourneSearchText", string.lower(StringValue))
 
                 Library:AddToRegistry(Button, {
@@ -3450,9 +3400,6 @@ do
             RecalculateListSize(Y)
         end
 
-        -- Search hides and shows existing rows instead of rebuilding the list. A rebuild
-        -- destroys and recreates every button, label, registry entry and highlight
-        -- connection, which ran on every keystroke.
         function Dropdown:ApplyFilter()
             local Count = 0
 
@@ -4876,10 +4823,6 @@ do
                 FillTween = nil
             end
 
-            -- While dragging, Display runs every frame. Tweening there built and cancelled
-            -- a Tween instance per frame and left the fill visibly trailing the cursor. The
-            -- ease is kept for programmatic changes (SetValue, config load), which is where
-            -- it was wanted.
             if SliderDragging then
                 Fill.Size = Goal
             elseif math.abs(Fill.Size.X.Scale - X) > 0.004 then
@@ -5047,7 +4990,6 @@ do
                     RunService.RenderStepped:Wait()
                 end
 
-                -- Settles the fill with the normal ease once the drag ends.
                 SliderDragging = false
                 Slider:Display()
 
@@ -5284,7 +5226,6 @@ do
                     FillTween = nil
                 end
 
-                -- See the single-slider Display: no tween while dragging.
                 if SliderDragging then
                     Fill.Size = Goal
                 elseif math.abs(Fill.Size.X.Scale - X) > 0.004 then
@@ -5401,7 +5342,6 @@ do
                         RunService.RenderStepped:Wait()
                     end
 
-                    -- Settles the fill with the normal ease once the drag ends.
                     SliderDragging = false
                     Slider:Display()
 
@@ -5755,9 +5695,6 @@ do
             end
         end
 
-        -- Plain-text, not a Lua pattern: the old :match() call treated the query as a
-        -- pattern, so a stray "%" was a malformed-pattern error and "-" quietly matched
-        -- nothing useful.
         local function MatchesSearch(StringValue)
             if not Info.Searchable or not DropdownInnerSearch then
                 return true
@@ -5806,7 +5743,6 @@ do
                     Parent = Scrolling;
                 })
 
-                -- Lets ApplyFilter re-test a row without rebuilding it.
                 Button:SetAttribute("MourneSearchText", string.lower(StringValue))
 
                 Library:AddToRegistry(Button, {
@@ -5908,9 +5844,6 @@ do
             RecalculateListSize(Y)
         end
 
-        -- Search hides and shows existing rows instead of rebuilding the list. A rebuild
-        -- destroys and recreates every button, label, registry entry and highlight
-        -- connection, which ran on every keystroke.
         function Dropdown:ApplyFilter()
             local Count = 0
 
@@ -6888,9 +6821,6 @@ do
             Depbox:Resize()
         end)
 
-        -- Called for every dependency box on every toggle change, so it must be cheap when
-        -- nothing changed. The Visible changed signal above already drives Resize, so the
-        -- resize is left to it rather than being run a second time here.
         function Depbox:Update()
             local ShouldShow = true
 
@@ -7008,8 +6938,6 @@ do
             BoxOuter.Size = UDim2.new(1, 0, 0, (10 * DPIScale + Size) + 2 + 2)
         end
 
-        -- Runs for every dependency groupbox on every toggle change. BoxOuter has no
-        -- Visible-changed signal, so the resize stays here -- but only when it changed.
         function DepGroupbox:Update()
             local ShouldShow = true
 
@@ -7131,13 +7059,8 @@ do
     Library.KeybindFrame = KeybindOuter
     Library.KeybindContainer = KeybindContainer
 
-    -- Recursive FindFirstChild per row, once per resize, was the bulk of this function's
-    -- cost. Rows keep the same label for their lifetime, so it is looked up once.
     local KeybindRowLabels = setmetatable({}, { __mode = "k" })
 
-    -- Set while UpdateKeybindMenu walks every keypicker: each Option:Update() calls
-    -- ResizeKeybindMenu, which made a full refresh O(keypickers x rows). One resize runs
-    -- at the end instead.
     local SuppressKeybindResize = false
 
     -- Sizes the panel to its visible rows, and hides it entirely when it has nothing to
@@ -8020,7 +7943,6 @@ function Library:CreateWindow(...)
         -- touched, so this stays cheap even under obfuscation.
         task.spawn(LPH_NO_VIRTUALIZE(function()
             while EdgeStroke.Parent and not Library.Unloaded do
-                -- Nothing to animate while the menu is closed, which is most of a session.
                 if Library.Toggled then
                     EdgeGrad.Rotation = (os.clock() * 20) % 360
                 end
@@ -9103,9 +9025,6 @@ end
                     end
                 end
 
-                -- Every control add, every visibility change and every dependency box
-                -- routes through here. Writing an unchanged Size still invalidates layout
-                -- for the whole side, so the write is skipped when nothing moved.
                 local NewSize = UDim2.new(1, 0, 0, (20 * DPIScale + Size) + 2 + 2)
                 if BoxOuter.Size ~= NewSize then
                     BoxOuter.Size = NewSize
