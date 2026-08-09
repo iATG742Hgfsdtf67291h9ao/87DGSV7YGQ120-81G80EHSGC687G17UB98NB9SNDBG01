@@ -1449,6 +1449,8 @@ local Templates = { -- TO-DO: do it for missing elements.
 }
 
 --// Addons \\--
+local CreateDropdownControl
+
 local BaseAddons = {}
 do
     local BaseAddonsFuncs = {}
@@ -2955,7 +2957,7 @@ do
         return self
     end
 
-    local function CreateDropdownControl(Args)
+    CreateDropdownControl = function(Args)
         local Idx = Args.Idx
         local Info = Args.Info
         local Groupbox = Args.Groupbox
