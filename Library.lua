@@ -3141,16 +3141,8 @@ do
         -- Only tracked while the list is open. These fire on any layout pass, for every
         -- dropdown on the UI, and repositioning a closed list is invisible work.
         -- OpenDropdown re-syncs before it becomes visible.
-        DropdownOuter:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
-            if ListOuter.Visible then
-                RecalculateListPosition()
-            end
-        end)
-        DropdownOuter:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-            if ListOuter.Visible then
-                RecalculateListSize()
-            end
-        end)
+        DropdownOuter:GetPropertyChangedSignal("AbsolutePosition"):Connect(RecalculateListPosition)
+        DropdownOuter:GetPropertyChangedSignal("AbsoluteSize"):Connect(RecalculateListSize)
 
         local ListInner = Library:Create("Frame", {
             BackgroundColor3 = Library.MainColor;
@@ -4790,7 +4782,6 @@ do
         end
         
         local FillTween = nil
-        local SliderDragging = false
 
         function Slider:Display()
             local CustomDisplayText = nil
@@ -4823,9 +4814,7 @@ do
                 FillTween = nil
             end
 
-            if SliderDragging then
-                Fill.Size = Goal
-            elseif math.abs(Fill.Size.X.Scale - X) > 0.004 then
+            if math.abs(Fill.Size.X.Scale - X) > 0.004 then
                 FillTween = TweenService:Create(Fill, SliderFillTween, { Size = Goal })
                 FillTween:Play()
             else
@@ -4969,7 +4958,6 @@ do
                 local gPos = Fill.AbsoluteSize.X
                 local Diff = mPos - (Fill.AbsolutePosition.X + gPos)
 
-                SliderDragging = true
 
                 while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or Library.TouchActive do
                     local nMPos = Mouse.X
@@ -4990,7 +4978,6 @@ do
                     RunService.RenderStepped:Wait()
                 end
 
-                SliderDragging = false
                 Slider:Display()
 
                 if Library.IsMobile then
@@ -5188,7 +5175,6 @@ do
             end
 
             local FillTween = nil
-            local SliderDragging = false
 
             function Slider:GetValueFromXScale(X)
                 return Round(Library:MapValue(X, 0, 1, Slider.Min, Slider.Max))
@@ -5226,9 +5212,7 @@ do
                     FillTween = nil
                 end
 
-                if SliderDragging then
-                    Fill.Size = Goal
-                elseif math.abs(Fill.Size.X.Scale - X) > 0.004 then
+                if math.abs(Fill.Size.X.Scale - X) > 0.004 then
                     FillTween = TweenService:Create(Fill, SliderFillTween, { Size = Goal })
                     FillTween:Play()
                 else
@@ -5318,7 +5302,6 @@ do
                         end
                     end
 
-                    SliderDragging = true
 
                     -- Tracked against the bar's own bounds instead of a fixed MaxSize,
                     -- since each slot is only a fraction of the groupbox width.
@@ -5342,7 +5325,6 @@ do
                         RunService.RenderStepped:Wait()
                     end
 
-                    SliderDragging = false
                     Slider:Display()
 
                     if Library.IsMobile then
@@ -5602,11 +5584,7 @@ do
         -- Only tracked while the list is open. These fire on any layout pass, for every
         -- dropdown on the UI, and repositioning a closed list is invisible work.
         -- OpenDropdown re-syncs before it becomes visible.
-        DropdownOuter:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
-            if ListOuter.Visible then
-                RecalculateListPosition()
-            end
-        end)
+        DropdownOuter:GetPropertyChangedSignal("AbsolutePosition"):Connect(RecalculateListPosition)
 
         local ListInner = Library:Create("Frame", {
             BackgroundColor3 = Library.MainColor;
