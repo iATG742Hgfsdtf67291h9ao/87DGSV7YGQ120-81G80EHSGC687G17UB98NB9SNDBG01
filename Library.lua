@@ -239,6 +239,7 @@ local DPIScale = 1;
 -- Eased fill animation shared by sliders and multi-sliders.
 local SliderFillTween = TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
+
 local Library = {
     Registry = {};
     RegistryMap = {};
@@ -1228,6 +1229,31 @@ end
 
 function Library:MapValue(Value, MinA, MaxA, MinB, MaxB)
     return (1 - ((Value - MinA) / (MaxA - MinA))) * MinB + ((Value - MinA) / (MaxA - MinA)) * MaxB
+end
+
+local SliderFillTweens = setmetatable({}, { __mode = "k" })
+
+local function UpdateSliderFill(Fill, Slider, HideBorderRight)
+    local X = Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, 1)
+    local Goal = Library:GetSliderFillSize(X)
+
+    local Existing = SliderFillTweens[Fill]
+    if Existing then
+        pcall(function() Existing:Cancel() end)
+        SliderFillTweens[Fill] = nil
+    end
+
+    if math.abs(Fill.Size.X.Scale - X) > 0.004 then
+        local Tween = TweenService:Create(Fill, SliderFillTween, { Size = Goal })
+        SliderFillTweens[Fill] = Tween
+        Tween:Play()
+    else
+        Fill.Size = Goal
+    end
+
+    if HideBorderRight then
+        HideBorderRight.Visible = not (X == 1 or X == 0)
+    end
 end
 
 function Library:GetTextBounds(Text, Font, Size, Resolution)
@@ -4753,7 +4779,6 @@ do
             Library.RegistryMap[Fill].Properties.BorderColor3 = Slider.Disabled and "DisabledOutlineColor" or "AccentColorDark"
         end
         
-        local FillTween = nil
 
         function Slider:Display()
             local CustomDisplayText = nil
@@ -4778,23 +4803,7 @@ do
                 end
             end
 
-            local X = Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, 1)
-            local Goal = Library:GetSliderFillSize(X)
-
-            if FillTween then
-                pcall(function() FillTween:Cancel() end)
-                FillTween = nil
-            end
-
-            if math.abs(Fill.Size.X.Scale - X) > 0.004 then
-                FillTween = TweenService:Create(Fill, SliderFillTween, { Size = Goal })
-                FillTween:Play()
-            else
-                Fill.Size = Goal
-            end
-
-            -- Covers the right edge of the fill so it sits flush against the inner frame.
-            HideBorderRight.Visible = not (X == 1 or X == 0)
+            UpdateSliderFill(Fill, Slider, HideBorderRight)
         end
 
         function Slider:OnChanged(Func)
@@ -5146,7 +5155,6 @@ do
                 return tonumber(string.format("%." .. Slider.Rounding .. "f", Value))
             end
 
-            local FillTween = nil
 
             function Slider:GetValueFromXScale(X)
                 return Round(Library:MapValue(X, 0, 1, Slider.Min, Slider.Max))
@@ -5176,20 +5184,7 @@ do
                     DisplayLabel.Text = string.format("%s: %s%s%s", Slider.Text, Slider.Prefix, FormattedValue, Slider.Suffix)
                 end
 
-                local X = Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, 1)
-                local Goal = Library:GetSliderFillSize(X)
-
-                if FillTween then
-                    pcall(function() FillTween:Cancel() end)
-                    FillTween = nil
-                end
-
-                if math.abs(Fill.Size.X.Scale - X) > 0.004 then
-                    FillTween = TweenService:Create(Fill, SliderFillTween, { Size = Goal })
-                    FillTween:Play()
-                else
-                    Fill.Size = Goal
-                end
+                UpdateSliderFill(Fill, Slider)
             end
 
             function Slider:OnChanged(Func)
